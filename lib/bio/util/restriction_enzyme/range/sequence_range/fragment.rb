@@ -31,7 +31,7 @@ class Fragment
     df.primary = ''
     df.complement = ''
 
-    both_bins = (@primary_bin + @complement_bin).sort.uniq
+    both_bins = @primary_bin + @complement_bin
     both_bins.each do |item|
       @primary_bin.include?(item) ? df.primary << p_str[item] : df.primary << ' '
       @complement_bin.include?(item) ? df.complement << c_str[item] : df.complement << ' '

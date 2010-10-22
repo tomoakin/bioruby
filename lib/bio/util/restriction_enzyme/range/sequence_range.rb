@@ -132,7 +132,80 @@ class SequenceRange
   #
   # TODO: Perhaps store the bins as one-or-many ranges since missing
   # nucleotides due to enzyme cutting is a special case.
-  Bin = Struct.new(:c, :p)
+  class Bin 
+    class BinHolder
+      def initialize(bin1 = nil, bin2 = nil)
+        tmpdata = Array.new
+        if bin1 == nil
+          @data = tmpdata
+          return self
+        end
+        bin1.data.each do |ele|
+          tmpdata.push ele.dup
+        end
+        if bin2 == nil
+          @data = tmpdata
+          return self
+        end
+        bin2.data.each do |ele|
+          tmpdata.push ele.dup
+        end
+        tmpdata.sort!{|a,b| a[0] <=> b[0]}
+        if tmpdata.size <= 1
+          @data = tmpdata
+        else
+          @data = Array.new
+          @data[0] = tmpdata[0]
+          (1..(tmpdata.size-1)).each do |i|
+            if(@data.last[1] >= tmpdata[i][0])
+              @data.last[1] = (@data.last[1] > tmpdata[i][1])? @data.last[1] : tmpdata[i][1]
+            else
+              @data << tmpdata[i]
+            end
+          end
+        end
+      end
+      def << (number)
+        if @data.size == 0
+          @data << [number, number]
+        elsif @data.last.last + 1 == number
+          @data.last[1] += 1
+        else 
+          @data << [number, number]
+        end
+      end
+      def include? (number)
+        @data.each do |ary|
+          if((number >= ary[0]) and (number <= ary[1]))
+             return true
+          end
+        end
+        return false
+      end
+      def each
+        @data.each do |ary|
+          (ary[0]..ary[1]).each do |num|
+            yield num
+          end
+        end
+      end
+      def + (arg)
+        BinHolder.new(self, arg)
+      end
+      def first
+        @data.first.first
+      end
+      def last
+        @data.last.last
+      end
+      attr_accessor :data
+    end
+    def initialize()
+      @c = BinHolder.new
+      @p = BinHolder.new
+    end
+    attr_accessor :c, :p
+  end
 
   # Calculates the fragments over this sequence range as defined after using
   # the methods add_cut_range, add_cut_ranges, and/or add_horizontal_cut_range
@@ -160,14 +233,16 @@ class SequenceRange
     @__fragments_current = true
     
     num_txt = '0123456789'
-    num_txt_repeat = (num_txt * ( @size / num_txt.size.to_f ).ceil)[0..@size-1]
+    num_txt_repeat = (num_txt * (@size / num_txt.size + 1))[0..@size-1]
     fragments = Fragments.new(num_txt_repeat, num_txt_repeat)
 
     cc = Bio::RestrictionEnzyme::Range::SequenceRange::CalculatedCuts.new(@size)
     cc.add_cuts_from_cut_ranges(@cut_ranges)
     cc.remove_incomplete_cuts
-    
-    create_bins(cc).sort.each { |k, bin| fragments << Fragment.new( bin.p, bin.c ) }
+    bins = create_bins(cc)
+    bins.sort.each { |k, bin| 
+      fragments << Fragment.new( bin.p, bin.c ) 
+    }
     @__fragments = fragments
     return fragments
   end
@@ -210,8 +285,8 @@ class SequenceRange
     end
 
     p_bin_id = c_bin_id = unique_id
-    bins = {}
-    setup_new_bin(bins, unique_id)
+    bins = Hash.new
+    bins[unique_id] = Bin.new
 
     -1.upto(@size-1) do |idx| # NOTE - circular, for the future - should '-1' be replace with 'unique_id'?
       
@@ -227,12 +302,12 @@ class SequenceRange
       
       if p_cut.include? idx
         p_bin_id = (unique_id += 1)
-        setup_new_bin(bins, p_bin_id)
+        bins[p_bin_id] = Bin.new
       end
 
       if c_cut.include? idx             # repetition
         c_bin_id = (unique_id += 1)     # repetition
-        setup_new_bin(bins, c_bin_id)   # repetition
+	bins[c_bin_id] = Bin.new        # repetition
       end                               # repetition
        
     end
@@ -241,14 +316,6 @@ class SequenceRange
     # there is a horizontal cut at position 0
     bins.delete(-1) unless @circular
     bins
-  end
-  
-  # Modifies bins in place by creating a new element with key bin_id and
-  # initializing the bin.
-  def setup_new_bin(bins, bin_id)
-    bins[ bin_id ] = Bin.new
-    bins[ bin_id ].p = []
-    bins[ bin_id ].c = []
   end
   
 end # SequenceRange
