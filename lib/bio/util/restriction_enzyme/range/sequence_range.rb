@@ -193,10 +193,18 @@ class SequenceRange
         BinHolder.new(self, arg)
       end
       def first
-        @data.first.first
+        if @data.first != nil
+          @data.first.first
+        else
+          nil
+        end
       end
       def last
-        @data.last.last
+        if @data.last != nil
+          @data.last.last
+        else
+          nil
+        end
       end
       attr_accessor :data
     end
